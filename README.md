@@ -1,0 +1,1 @@
+# netskope-ms-sentinel-integration

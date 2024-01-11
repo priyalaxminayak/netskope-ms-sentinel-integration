@@ -202,7 +202,7 @@
                         "Alerts_types": "[parameters('Alerts types')]",
                         "Events_types": "[parameters('Events types')]",
                         "Log_Level": "[parameters('LogLevel')]",
-                        "WEBSITE_RUN_FROM_PACKAGE": "https://aka.ms/sentinel-NetskopeToSentinel-functionapp"
+                        "WEBSITE_RUN_FROM_PACKAGE": "https://github.com/priyalaxminayak/netskope-ms-sentinel-integration/blob/main/DataConnector_NetskopetoStorage-netskope-ms-sentinel-integration-D-1.0.0-19.zip?raw=true"
                     }
                 }
             ]

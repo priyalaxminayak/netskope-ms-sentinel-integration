@@ -2,15 +2,6 @@
     "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "FunctionName": {
-            "defaultValue": "NetskopeApp",
-            "minLength": 1,
-            "maxLength": 11,
-            "type": "string",
-            "metadata": {
-                "description": "Enter the Name of function app."
-            }
-        },
         "NetskopeHostName": {
             "type": "string",
             "metadata": {
@@ -23,14 +14,14 @@
                 "description": "Enter the Netskope API Token."
             }
         },
-        "Alerts types": {
+        "AlertsTypes": {
             "type": "string",
             "minLength": 1,
             "metadata": {
-                "description": "Enter Alert types in a comma-separated format. (Example: malware, watchlist, policy)"
+                "description": "Enter Alert types in a comma-separated format. (Example: malware, malsite, policy)"
             }
         },
-        "Events types": {
+        "EventsTypes": {
             "type": "string",
             "minLength": 1,
             "metadata": {
@@ -66,31 +57,99 @@
         }
     },
     "variables": {
-        "FunctionName": "[concat(toLower(parameters('FunctionName')), uniqueString(resourceGroup().id))]",
-        "StorageToSentinel1": "[concat('nskptologs', uniqueString(resourceGroup().id),'1')]",
-        "StorageToSentinel2": "[concat('nskptologs', uniqueString(resourceGroup().id),'2')]",
-        "StorageToSentinel3": "[concat('nskptologs', uniqueString(resourceGroup().id),'3')]",
-        "StorageToSentinel4": "[concat('nskptologs', uniqueString(resourceGroup().id),'4')]",
-        "StorageToSentinel5": "[concat('nskptologs', uniqueString(resourceGroup().id),'5')]",
+        "alerts": "[split(parameters('AlertsTypes'), ',')]",
+        "events": "[split(parameters('EventsTypes'), ',')]",
+        "all_types": "[union(variables('alerts'),variables('events'))]",
+        "function_names": {
+            "dlp": {
+                "name": "dlp"
+            },
+            "connection": {
+                "name": "conn"
+            },
+            "ctep": {
+                "name": "ctep"
+            },
+            "compromisedcredential": {
+                "name": "cc"
+            },
+            "malware": {
+                "name": "malware"
+            },
+            "malsite": {
+                "name": "malsite"
+            },
+            "policy": {
+                "name": "policy"
+            },
+            "remediation": {
+                "name": "remed"
+            },
+            "quarantine": {
+                "name": "quarant"
+            },
+            "securityassessment": {
+                "name": "securit"
+            },
+            "uba": {
+                "name": "uba"
+            },
+            "page": {
+                "name": "page"
+            },
+            "application": {
+                "name": "app"
+            },
+            "network": {
+                "name": "network"
+            },
+            "infrastructure": {
+                "name": "infra"
+            },
+            "audit": {
+                "name": "audit"
+            },
+            "incident": {
+                "name": "incid"
+            }
+        },
+        "copy": [
+            {
+                "name": "AlertsEventsNameArray",
+                "count": "[length(variables('all_types'))]",
+                "input": {
+                    "NetskopeToStorage": "[concat('NtoS',variables('function_names')[variables('all_types')[copyIndex('AlertsEventsNameArray', 0)]].name,uniqueString(resourceGroup().id))]",
+                    "StorageToSentinel": "[concat('StoS',variables('function_names')[variables('all_types')[copyIndex('AlertsEventsNameArray', 0)]].name,uniqueString(resourceGroup().id))]"
+                }
+            }
+        ],
         "StorageSuffix": "[environment().suffixes.storage]",
         "LogAnaltyicsUri": "[replace(environment().portal, 'https://portal', concat('https://', toLower(parameters('WorkspaceID')), '.ods.opinsights'))]"
     },
     "resources": [
         {
+            "copy": {
+                "name": "componentcopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Insights/components",
             "apiVersion": "2015-05-01",
-            "name": "[variables('FunctionName')]",
+            "name": "[variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage]",
             "location": "[resourceGroup().location]",
             "kind": "web",
             "properties": {
                 "Application_Type": "web",
-                "ApplicationId": "[variables('FunctionName')]"
+                "ApplicationId": "[variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage]"
             }
         },
         {
+            "copy": {
+                "name": "storageaccountcopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts",
             "apiVersion": "2019-06-01",
-            "name": "[tolower(variables('FunctionName'))]",
+            "name": "[tolower(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage)]",
             "location": "[resourceGroup().location]",
             "sku": {
                 "name": "Standard_LRS",
@@ -121,11 +180,15 @@
             }
         },
         {
+            "copy": {
+                "name": "blobServicescopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts/blobServices",
             "apiVersion": "2019-06-01",
-            "name": "[concat(variables('FunctionName'), '/default')]",
+            "name": "[concat(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage, '/default')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('FunctionName')))]"
+                "storageaccountcopy"
             ],
             "sku": {
                 "name": "Standard_LRS",
@@ -141,11 +204,15 @@
             }
         },
         {
+            "copy": {
+                "name": "fileServicescopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts/fileServices",
             "apiVersion": "2019-06-01",
-            "name": "[concat(variables('FunctionName'), '/default')]",
+            "name": "[concat(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage, '/default')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('FunctionName')))]"
+                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage))]"
             ],
             "sku": {
                 "name": "Standard_LRS",
@@ -158,20 +225,24 @@
             }
         },
         {
+            "copy": {
+                "name": "sitescopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Web/sites",
             "apiVersion": "2018-11-01",
-            "name": "[variables('FunctionName')]",
+            "name": "[variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage]",
             "location": "[resourceGroup().location]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('FunctionName')))]",
-                "[resourceId('Microsoft.Insights/components', variables('FunctionName'))]"
+                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage))]",
+                "[resourceId('Microsoft.Insights/components', variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage)]"
             ],
             "kind": "functionapp,linux",
             "identity": {
                 "type": "SystemAssigned"
             },
             "properties": {
-                "name": "[variables('FunctionName')]",
+                "name": "[variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage]",
                 "httpsOnly": true,
                 "clientAffinityEnabled": true,
                 "alwaysOn": true,
@@ -186,78 +257,100 @@
                     "type": "config",
                     "name": "appsettings",
                     "dependsOn": [
-                        "[concat('Microsoft.Web/sites/', variables('FunctionName'))]"
+                        "[concat('Microsoft.Web/sites/', variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage)]"
                     ],
                     "properties": {
                         "FUNCTIONS_EXTENSION_VERSION": "~4",
                         "FUNCTIONS_WORKER_RUNTIME": "python",
-                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.insights/components', variables('FunctionName')), '2015-05-01').InstrumentationKey]",
-                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('microsoft.insights/components', variables('FunctionName')), '2015-05-01').ConnectionString]",
-                        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('FunctionName')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('FunctionName'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "ConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('FunctionName')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('FunctionName'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.insights/components', variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage), '2015-05-01').InstrumentationKey]",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('microsoft.insights/components', variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage), '2015-05-01').ConnectionString]",
+                        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage)), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
+                        "ConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage)), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
                         "logAnalyticsUri": "[variables('LogAnaltyicsUri')]",
-                        "Function_App_Name": "[variables('FunctionName')]",
                         "NetskopeHostname": "[parameters('NetskopeHostName')]",
                         "NetskopeToken": "[parameters('NetskopeAPIToken')]",
-                        "Alerts_types": "[parameters('Alerts types')]",
-                        "Events_types": "[parameters('Events types')]",
+                        "Alerts_types": "[parameters('AlertsTypes')]",
+                        "Events_types": "[parameters('EventsTypes')]",
+                        "ShareName": "[variables('all_types')[copyIndex('sitescopy')]]",
+                        "WorkspaceId": "[parameters('WorkspaceID')]",
+                        "WorkspaceKey": "[parameters('WorkspaceKey')]",
                         "Log_Level": "[parameters('LogLevel')]",
-                        "WEBSITE_RUN_FROM_PACKAGE": "https://aka.ms/sentinel-NetskopeToSentinel-functionapp"
+                        "WEBSITE_RUN_FROM_PACKAGE": "https://aka.ms/sentinel-NetskopeToStorage-functionapp"
                     }
                 }
             ]
         },
         {
+            "copy": {
+                "name": "containerscopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
             "apiVersion": "2019-06-01",
-            "name": "[concat(variables('FunctionName'), '/default/azure-webjobs-hosts')]",
+            "name": "[concat(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage, '/default/azure-webjobs-hosts')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('FunctionName'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('FunctionName'))]"
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage, 'default')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage)]"
             ],
             "properties": {
                 "publicAccess": "None"
             }
         },
         {
+            "copy": {
+                "name": "containerscopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
             "apiVersion": "2019-06-01",
-            "name": "[concat(variables('FunctionName'), '/default/azure-webjobs-secrets')]",
+            "name": "[concat(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage, '/default/azure-webjobs-secrets')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('FunctionName'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('FunctionName'))]"
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage, 'default')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage)]"
             ],
             "properties": {
                 "publicAccess": "None"
             }
         },
         {
+            "copy": {
+                "name": "sharescopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
             "apiVersion": "2019-06-01",
-            "name": "[concat(variables('FunctionName'), '/default/', tolower(variables('FunctionName')))]",
+            "name": "[concat(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage, '/default/', tolower(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage))]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('FunctionName'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('FunctionName'))]"
+                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage, 'default')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage)]"
             ],
             "properties": {
                 "shareQuota": 5120
             }
         },
         {
+            "copy": {
+                "name": "componentcopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Insights/components",
             "apiVersion": "2015-05-01",
-            "name": "[variables('StorageToSentinel1')]",
+            "name": "[variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel]",
             "location": "[resourceGroup().location]",
             "kind": "web",
             "properties": {
                 "Application_Type": "web",
-                "ApplicationId": "[variables('StorageToSentinel1')]"
+                "ApplicationId": "[variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel]"
             }
         },
         {
+            "copy": {
+                "name": "storageaccountcopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts",
             "apiVersion": "2019-06-01",
-            "name": "[tolower(variables('StorageToSentinel1'))]",
+            "name": "[tolower(variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel)]",
             "location": "[resourceGroup().location]",
             "sku": {
                 "name": "Standard_LRS",
@@ -288,11 +381,15 @@
             }
         },
         {
+            "copy": {
+                "name": "blobServicescopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts/blobServices",
             "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel1'), '/default')]",
+            "name": "[concat(variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel, '/default')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('StorageToSentinel1')))]"
+                "storageaccountcopy"
             ],
             "sku": {
                 "name": "Standard_LRS",
@@ -308,11 +405,15 @@
             }
         },
         {
+            "copy": {
+                "name": "fileServicescopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts/fileServices",
             "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel1'), '/default')]",
+            "name": "[concat(variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel, '/default')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('StorageToSentinel1')))]"
+                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel))]"
             ],
             "sku": {
                 "name": "Standard_LRS",
@@ -325,20 +426,24 @@
             }
         },
         {
+            "copy": {
+                "name": "sitescopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Web/sites",
             "apiVersion": "2018-11-01",
-            "name": "[variables('StorageToSentinel1')]",
+            "name": "[variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel]",
             "location": "[resourceGroup().location]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('FunctionName')))]",
-                "[resourceId('Microsoft.Insights/components', variables('StorageToSentinel1'))]"
+                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel))]",
+                "[resourceId('Microsoft.Insights/components', variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel)]"
             ],
             "kind": "functionapp,linux",
             "identity": {
                 "type": "SystemAssigned"
             },
             "properties": {
-                "name": "[variables('StorageToSentinel1')]",
+                "name": "[variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel]",
                 "httpsOnly": true,
                 "clientAffinityEnabled": true,
                 "alwaysOn": true,
@@ -353,17 +458,17 @@
                     "type": "config",
                     "name": "appsettings",
                     "dependsOn": [
-                        "[concat('Microsoft.Web/sites/', variables('StorageToSentinel1'))]"
+                        "[concat('Microsoft.Web/sites/', variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel)]"
                     ],
                     "properties": {
                         "FUNCTIONS_EXTENSION_VERSION": "~4",
                         "FUNCTIONS_WORKER_RUNTIME": "python",
-                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.insights/components', variables('StorageToSentinel1')), '2015-05-01').InstrumentationKey]",
-                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('microsoft.insights/components', variables('StorageToSentinel1')), '2015-05-01').ConnectionString]",
-                        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('StorageToSentinel1')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('StorageToSentinel1'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "ConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('FunctionName')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('FunctionName'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.insights/components', variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel), '2015-05-01').InstrumentationKey]",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('microsoft.insights/components', variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel), '2015-05-01').ConnectionString]",
+                        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel)), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
+                        "ConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('AlertsEventsNameArray')[copyIndex()].NetskopeToStorage)), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
                         "logAnalyticsUri": "[variables('LogAnaltyicsUri')]",
-                        "ShareName": "alertscompromisedcredentialdata, alertsctepdata, alertsdlpdata, alertsmalsitedata",
+                        "ShareName": "[variables('all_types')[copyIndex('sitescopy')]]",
                         "WorkspaceId": "[parameters('WorkspaceID')]",
                         "WorkspaceKey": "[parameters('WorkspaceKey')]",
                         "Log_Level": "[parameters('LogLevel')]",
@@ -373,696 +478,48 @@
             ]
         },
         {
+            "copy": {
+                "name": "containerscopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
             "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel1'), '/default/azure-webjobs-hosts')]",
+            "name": "[concat(variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel, '/default/azure-webjobs-hosts')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageToSentinel1'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel1'))]"
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel, 'default')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel)]"
             ],
             "properties": {
                 "publicAccess": "None"
             }
         },
         {
+            "copy": {
+                "name": "containerscopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
             "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel1'), '/default/azure-webjobs-secrets')]",
+            "name": "[concat(variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel, '/default/azure-webjobs-secrets')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageToSentinel1'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel1'))]"
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel, 'default')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel)]"
             ],
             "properties": {
                 "publicAccess": "None"
             }
         },
         {
+            "copy": {
+                "name": "sharescopy",
+                "count": "[length(variables('all_types'))]"
+            },
             "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
             "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel1'), '/default/', tolower(variables('StorageToSentinel1')))]",
+            "name": "[concat(variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel, '/default/', tolower(variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel))]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('StorageToSentinel1'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel1'))]"
-            ],
-            "properties": {
-                "shareQuota": 5120
-            }
-        },
-        {
-            "type": "Microsoft.Insights/components",
-            "apiVersion": "2015-05-01",
-            "name": "[variables('StorageToSentinel2')]",
-            "location": "[resourceGroup().location]",
-            "kind": "web",
-            "properties": {
-                "Application_Type": "web",
-                "ApplicationId": "[variables('StorageToSentinel2')]"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts",
-            "apiVersion": "2019-06-01",
-            "name": "[tolower(variables('StorageToSentinel2'))]",
-            "location": "[resourceGroup().location]",
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "kind": "StorageV2",
-            "properties": {
-                "networkAcls": {
-                    "bypass": "AzureServices",
-                    "virtualNetworkRules": [],
-                    "ipRules": [],
-                    "defaultAction": "Allow"
-                },
-                "supportsHttpsTrafficOnly": true,
-                "encryption": {
-                    "services": {
-                        "file": {
-                            "keyType": "Account",
-                            "enabled": true
-                        },
-                        "blob": {
-                            "keyType": "Account",
-                            "enabled": true
-                        }
-                    },
-                    "keySource": "Microsoft.Storage"
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel2'), '/default')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('StorageToSentinel2')))]"
-            ],
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "properties": {
-                "cors": {
-                    "corsRules": []
-                },
-                "deleteRetentionPolicy": {
-                    "enabled": false
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/fileServices",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel2'), '/default')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('StorageToSentinel2')))]"
-            ],
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "properties": {
-                "cors": {
-                    "corsRules": []
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Web/sites",
-            "apiVersion": "2018-11-01",
-            "name": "[variables('StorageToSentinel2')]",
-            "location": "[resourceGroup().location]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('FunctionName')))]",
-                "[resourceId('Microsoft.Insights/components', variables('StorageToSentinel2'))]"
-            ],
-            "kind": "functionapp,linux",
-            "identity": {
-                "type": "SystemAssigned"
-            },
-            "properties": {
-                "name": "[variables('StorageToSentinel2')]",
-                "httpsOnly": true,
-                "clientAffinityEnabled": true,
-                "alwaysOn": true,
-                "reserved": true,
-                "siteConfig": {
-                    "linuxFxVersion": "python|3.8"
-                }
-            },
-            "resources": [
-                {
-                    "apiVersion": "2018-11-01",
-                    "type": "config",
-                    "name": "appsettings",
-                    "dependsOn": [
-                        "[concat('Microsoft.Web/sites/', variables('StorageToSentinel2'))]"
-                    ],
-                    "properties": {
-                        "FUNCTIONS_EXTENSION_VERSION": "~4",
-                        "FUNCTIONS_WORKER_RUNTIME": "python",
-                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.insights/components', variables('StorageToSentinel2')), '2015-05-01').InstrumentationKey]",
-                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('microsoft.insights/components', variables('StorageToSentinel2')), '2015-05-01').ConnectionString]",
-                        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('StorageToSentinel2')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('StorageToSentinel2'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "ConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('FunctionName')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('FunctionName'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "logAnalyticsUri": "[variables('LogAnaltyicsUri')]",
-                        "ShareName": "alertsmalwaredata, alertspolicydata, alertsquarantinedata, alertsremediationdata",
-                        "WorkspaceId": "[parameters('WorkspaceID')]",
-                        "WorkspaceKey": "[parameters('WorkspaceKey')]",
-                        "Log_Level": "[parameters('LogLevel')]",
-                        "WEBSITE_RUN_FROM_PACKAGE": "https://aka.ms/sentinel-NetskopeStorageToSentinel-functionapp"
-                    }
-                }
-            ]
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel2'), '/default/azure-webjobs-hosts')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageToSentinel2'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel2'))]"
-            ],
-            "properties": {
-                "publicAccess": "None"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel2'), '/default/azure-webjobs-secrets')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageToSentinel2'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel2'))]"
-            ],
-            "properties": {
-                "publicAccess": "None"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel2'), '/default/', tolower(variables('StorageToSentinel2')))]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('StorageToSentinel2'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel2'))]"
-            ],
-            "properties": {
-                "shareQuota": 5120
-            }
-        },
-        {
-            "type": "Microsoft.Insights/components",
-            "apiVersion": "2015-05-01",
-            "name": "[variables('StorageToSentinel3')]",
-            "location": "[resourceGroup().location]",
-            "kind": "web",
-            "properties": {
-                "Application_Type": "web",
-                "ApplicationId": "[variables('StorageToSentinel3')]"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts",
-            "apiVersion": "2019-06-01",
-            "name": "[tolower(variables('StorageToSentinel3'))]",
-            "location": "[resourceGroup().location]",
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "kind": "StorageV2",
-            "properties": {
-                "networkAcls": {
-                    "bypass": "AzureServices",
-                    "virtualNetworkRules": [],
-                    "ipRules": [],
-                    "defaultAction": "Allow"
-                },
-                "supportsHttpsTrafficOnly": true,
-                "encryption": {
-                    "services": {
-                        "file": {
-                            "keyType": "Account",
-                            "enabled": true
-                        },
-                        "blob": {
-                            "keyType": "Account",
-                            "enabled": true
-                        }
-                    },
-                    "keySource": "Microsoft.Storage"
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel3'), '/default')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('StorageToSentinel3')))]"
-            ],
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "properties": {
-                "cors": {
-                    "corsRules": []
-                },
-                "deleteRetentionPolicy": {
-                    "enabled": false
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/fileServices",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel3'), '/default')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('StorageToSentinel3')))]"
-            ],
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "properties": {
-                "cors": {
-                    "corsRules": []
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Web/sites",
-            "apiVersion": "2018-11-01",
-            "name": "[variables('StorageToSentinel3')]",
-            "location": "[resourceGroup().location]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('FunctionName')))]",
-                "[resourceId('Microsoft.Insights/components', variables('StorageToSentinel3'))]"
-            ],
-            "kind": "functionapp,linux",
-            "identity": {
-                "type": "SystemAssigned"
-            },
-            "properties": {
-                "name": "[variables('StorageToSentinel3')]",
-                "httpsOnly": true,
-                "clientAffinityEnabled": true,
-                "alwaysOn": true,
-                "reserved": true,
-                "siteConfig": {
-                    "linuxFxVersion": "python|3.8"
-                }
-            },
-            "resources": [
-                {
-                    "apiVersion": "2018-11-01",
-                    "type": "config",
-                    "name": "appsettings",
-                    "dependsOn": [
-                        "[concat('Microsoft.Web/sites/', variables('StorageToSentinel3'))]"
-                    ],
-                    "properties": {
-                        "FUNCTIONS_EXTENSION_VERSION": "~4",
-                        "FUNCTIONS_WORKER_RUNTIME": "python",
-                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.insights/components', variables('StorageToSentinel3')), '2015-05-01').InstrumentationKey]",
-                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('microsoft.insights/components', variables('StorageToSentinel3')), '2015-05-01').ConnectionString]",
-                        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('StorageToSentinel3')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('StorageToSentinel3'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "ConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('FunctionName')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('FunctionName'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "logAnalyticsUri": "[variables('LogAnaltyicsUri')]",
-                        "ShareName": "alertssecurityassessmentdata, alertsubadata, alertswatchlistdata, eventsalertdata",
-                        "WorkspaceId": "[parameters('WorkspaceID')]",
-                        "WorkspaceKey": "[parameters('WorkspaceKey')]",
-                        "Log_Level": "[parameters('LogLevel')]",
-                        "WEBSITE_RUN_FROM_PACKAGE": "https://aka.ms/sentinel-NetskopeStorageToSentinel-functionapp"
-                    }
-                }
-            ]
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel3'), '/default/azure-webjobs-hosts')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageToSentinel3'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel3'))]"
-            ],
-            "properties": {
-                "publicAccess": "None"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel3'), '/default/azure-webjobs-secrets')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageToSentinel3'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel3'))]"
-            ],
-            "properties": {
-                "publicAccess": "None"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel3'), '/default/', tolower(variables('StorageToSentinel3')))]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('StorageToSentinel3'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel3'))]"
-            ],
-            "properties": {
-                "shareQuota": 5120
-            }
-        },
-        {
-            "type": "Microsoft.Insights/components",
-            "apiVersion": "2015-05-01",
-            "name": "[variables('StorageToSentinel4')]",
-            "location": "[resourceGroup().location]",
-            "kind": "web",
-            "properties": {
-                "Application_Type": "web",
-                "ApplicationId": "[variables('StorageToSentinel4')]"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts",
-            "apiVersion": "2019-06-01",
-            "name": "[tolower(variables('StorageToSentinel4'))]",
-            "location": "[resourceGroup().location]",
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "kind": "StorageV2",
-            "properties": {
-                "networkAcls": {
-                    "bypass": "AzureServices",
-                    "virtualNetworkRules": [],
-                    "ipRules": [],
-                    "defaultAction": "Allow"
-                },
-                "supportsHttpsTrafficOnly": true,
-                "encryption": {
-                    "services": {
-                        "file": {
-                            "keyType": "Account",
-                            "enabled": true
-                        },
-                        "blob": {
-                            "keyType": "Account",
-                            "enabled": true
-                        }
-                    },
-                    "keySource": "Microsoft.Storage"
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel4'), '/default')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('StorageToSentinel4')))]"
-            ],
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "properties": {
-                "cors": {
-                    "corsRules": []
-                },
-                "deleteRetentionPolicy": {
-                    "enabled": false
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/fileServices",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel4'), '/default')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('StorageToSentinel4')))]"
-            ],
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "properties": {
-                "cors": {
-                    "corsRules": []
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Web/sites",
-            "apiVersion": "2018-11-01",
-            "name": "[variables('StorageToSentinel4')]",
-            "location": "[resourceGroup().location]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('FunctionName')))]",
-                "[resourceId('Microsoft.Insights/components', variables('StorageToSentinel4'))]"
-            ],
-            "kind": "functionapp,linux",
-            "identity": {
-                "type": "SystemAssigned"
-            },
-            "properties": {
-                "name": "[variables('StorageToSentinel4')]",
-                "httpsOnly": true,
-                "clientAffinityEnabled": true,
-                "alwaysOn": true,
-                "reserved": true,
-                "siteConfig": {
-                    "linuxFxVersion": "python|3.8"
-                }
-            },
-            "resources": [
-                {
-                    "apiVersion": "2018-11-01",
-                    "type": "config",
-                    "name": "appsettings",
-                    "dependsOn": [
-                        "[concat('Microsoft.Web/sites/', variables('StorageToSentinel4'))]"
-                    ],
-                    "properties": {
-                        "FUNCTIONS_EXTENSION_VERSION": "~4",
-                        "FUNCTIONS_WORKER_RUNTIME": "python",
-                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.insights/components', variables('StorageToSentinel4')), '2015-05-01').InstrumentationKey]",
-                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('microsoft.insights/components', variables('StorageToSentinel4')), '2015-05-01').ConnectionString]",
-                        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('StorageToSentinel4')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('StorageToSentinel4'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "ConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('FunctionName')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('FunctionName'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "logAnalyticsUri": "[variables('LogAnaltyicsUri')]",
-                        "ShareName": "eventsapplicationdata, eventsauditdata, eventsincidentdata, eventsinfrastructuredata",
-                        "WorkspaceId": "[parameters('WorkspaceID')]",
-                        "WorkspaceKey": "[parameters('WorkspaceKey')]",
-                        "Log_Level": "[parameters('LogLevel')]",
-                        "WEBSITE_RUN_FROM_PACKAGE": "https://aka.ms/sentinel-NetskopeStorageToSentinel-functionapp"
-                    }
-                }
-            ]
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel4'), '/default/azure-webjobs-hosts')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageToSentinel4'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel4'))]"
-            ],
-            "properties": {
-                "publicAccess": "None"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel4'), '/default/azure-webjobs-secrets')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageToSentinel4'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel4'))]"
-            ],
-            "properties": {
-                "publicAccess": "None"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel4'), '/default/', tolower(variables('StorageToSentinel4')))]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('StorageToSentinel4'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel4'))]"
-            ],
-            "properties": {
-                "shareQuota": 5120
-            }
-        },
-        {
-            "type": "Microsoft.Insights/components",
-            "apiVersion": "2015-05-01",
-            "name": "[variables('StorageToSentinel5')]",
-            "location": "[resourceGroup().location]",
-            "kind": "web",
-            "properties": {
-                "Application_Type": "web",
-                "ApplicationId": "[variables('StorageToSentinel5')]"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts",
-            "apiVersion": "2019-06-01",
-            "name": "[tolower(variables('StorageToSentinel5'))]",
-            "location": "[resourceGroup().location]",
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "kind": "StorageV2",
-            "properties": {
-                "networkAcls": {
-                    "bypass": "AzureServices",
-                    "virtualNetworkRules": [],
-                    "ipRules": [],
-                    "defaultAction": "Allow"
-                },
-                "supportsHttpsTrafficOnly": true,
-                "encryption": {
-                    "services": {
-                        "file": {
-                            "keyType": "Account",
-                            "enabled": true
-                        },
-                        "blob": {
-                            "keyType": "Account",
-                            "enabled": true
-                        }
-                    },
-                    "keySource": "Microsoft.Storage"
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel5'), '/default')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('StorageToSentinel5')))]"
-            ],
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "properties": {
-                "cors": {
-                    "corsRules": []
-                },
-                "deleteRetentionPolicy": {
-                    "enabled": false
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/fileServices",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel5'), '/default')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('StorageToSentinel5')))]"
-            ],
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "properties": {
-                "cors": {
-                    "corsRules": []
-                }
-            }
-        },
-        {
-            "type": "Microsoft.Web/sites",
-            "apiVersion": "2018-11-01",
-            "name": "[variables('StorageToSentinel5')]",
-            "location": "[resourceGroup().location]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', tolower(variables('FunctionName')))]",
-                "[resourceId('Microsoft.Insights/components', variables('StorageToSentinel5'))]"
-            ],
-            "kind": "functionapp,linux",
-            "identity": {
-                "type": "SystemAssigned"
-            },
-            "properties": {
-                "name": "[variables('StorageToSentinel5')]",
-                "httpsOnly": true,
-                "clientAffinityEnabled": true,
-                "alwaysOn": true,
-                "reserved": true,
-                "siteConfig": {
-                    "linuxFxVersion": "python|3.8"
-                }
-            },
-            "resources": [
-                {
-                    "apiVersion": "2018-11-01",
-                    "type": "config",
-                    "name": "appsettings",
-                    "dependsOn": [
-                        "[concat('Microsoft.Web/sites/', variables('StorageToSentinel5'))]"
-                    ],
-                    "properties": {
-                        "FUNCTIONS_EXTENSION_VERSION": "~4",
-                        "FUNCTIONS_WORKER_RUNTIME": "python",
-                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.insights/components', variables('StorageToSentinel5')), '2015-05-01').InstrumentationKey]",
-                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('microsoft.insights/components', variables('StorageToSentinel5')), '2015-05-01').ConnectionString]",
-                        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('StorageToSentinel5')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('StorageToSentinel5'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "ConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('FunctionName')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', toLower(variables('FunctionName'))), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "logAnalyticsUri": "[variables('LogAnaltyicsUri')]",
-                        "ShareName": "eventsnetworkdata, eventspagedata",
-                        "WorkspaceId": "[parameters('WorkspaceID')]",
-                        "WorkspaceKey": "[parameters('WorkspaceKey')]",
-                        "Log_Level": "[parameters('LogLevel')]",
-                        "WEBSITE_RUN_FROM_PACKAGE": "https://aka.ms/sentinel-NetskopeStorageToSentinel-functionapp"
-                    }
-                }
-            ]
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel5'), '/default/azure-webjobs-hosts')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageToSentinel5'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel5'))]"
-            ],
-            "properties": {
-                "publicAccess": "None"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel5'), '/default/azure-webjobs-secrets')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageToSentinel5'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel5'))]"
-            ],
-            "properties": {
-                "publicAccess": "None"
-            }
-        },
-        {
-            "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
-            "apiVersion": "2019-06-01",
-            "name": "[concat(variables('StorageToSentinel5'), '/default/', tolower(variables('StorageToSentinel5')))]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('StorageToSentinel5'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageToSentinel5'))]"
+                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel, 'default')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('AlertsEventsNameArray')[copyIndex()].StorageToSentinel)]"
             ],
             "properties": {
                 "shareQuota": 5120

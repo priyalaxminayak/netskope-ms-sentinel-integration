@@ -871,7 +871,7 @@
                         "WorkspaceId": "[parameters('WorkspaceID')]",
                         "WorkspaceKey": "[parameters('WorkspaceKey')]",
                         "Log_Level": "[parameters('LogLevel')]",
-                        "WEBSITE_RUN_FROM_PACKAGE": "https://github.com/priyalaxminayak/netskope-ms-sentinel-integration/blob/main/DataConnector_WebTxMetrics-netskope-ms-sentinel-integration-D-1.0.0-35.zip?raw=true"
+                        "WEBSITE_RUN_FROM_PACKAGE": "raw=true"
                     }
                 }
             ]

@@ -374,9 +374,9 @@
                 "autoUpgradeMinorVersion": true,
                 "settings": {},
                 "protectedSettings": {
-					"commandToExecute": "[concat('sudo sh install_docker.sh ',parameters('DockerImageName'),' ',parameters('NetskopeHostName'),' ',parameters('NetskopeAPIToken'),' ',parameters('WorkspaceKey'),' ',parameters('WorkspaceID'),' ',parameters('BackoffRetryCount'),' ',parameters('BackoffSleepTime'),' ',parameters('IdleTimeout'),' ',parameters('SeekTimestamp'))]",
+					"commandToExecute": "[concat('sudo sh install.sh ',parameters('DockerImageName'),' ',parameters('NetskopeHostName'),' ',parameters('NetskopeAPIToken'),' ',parameters('WorkspaceKey'),' ',parameters('WorkspaceID'),' ',parameters('BackoffRetryCount'),' ',parameters('BackoffSleepTime'),' ',parameters('IdleTimeout'),' ',parameters('SeekTimestamp'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/priyalaxminayak/netskope-ms-sentinel-integration/main/install_docker.sh"
+                        "https://raw.githubusercontent.com/priyalaxminayak/netskope-ms-sentinel-integration/main/install.sh"
                     ]
                 }
             }

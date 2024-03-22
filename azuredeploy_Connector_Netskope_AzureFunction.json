@@ -479,7 +479,7 @@
                         "WorkspaceId": "[parameters('WorkspaceID')]",
                         "WorkspaceKey": "[parameters('WorkspaceKey')]",
                         "Log_Level": "[parameters('LogLevel')]",
-                        "WEBSITE_RUN_FROM_PACKAGE": "https://github.com/priyalaxminayak/netskope-ms-sentinel-integration/blob/main/DataConnector_NetskopetoStorage-netskope-ms-sentinel-integration-S2-1.0.0-42.zip?raw=true"
+                        "WEBSITE_RUN_FROM_PACKAGE": "https://aka.ms/sentinel-NetskopeToStorage-functionapp"
                     },
                     "condition": "[if(equals(variables('AlertsEventsNameArray')[copyIndex()].CheckToInclude, 'true'), true(), false())]"
                 }
@@ -685,7 +685,7 @@
                         "WorkspaceId": "[parameters('WorkspaceID')]",
                         "WorkspaceKey": "[parameters('WorkspaceKey')]",
                         "Log_Level": "[parameters('LogLevel')]",
-                        "WEBSITE_RUN_FROM_PACKAGE": "https://github.com/priyalaxminayak/netskope-ms-sentinel-integration/blob/main/DataConnector_StoragetoSentinel-netskope-ms-sentinel-integration-S2-1.0.0-42.zip?raw=true"
+                        "WEBSITE_RUN_FROM_PACKAGE": "https://aka.ms/sentinel-NetskopeStorageToSentinel-functionapp"
                     },
                     "condition": "[if(equals(variables('AlertsEventsNameArray')[copyIndex()].CheckToInclude, 'true'), true(), false())]"
                 }
@@ -871,7 +871,7 @@
                         "WorkspaceId": "[parameters('WorkspaceID')]",
                         "WorkspaceKey": "[parameters('WorkspaceKey')]",
                         "Log_Level": "[parameters('LogLevel')]",
-                        "WEBSITE_RUN_FROM_PACKAGE": "https://github.com/priyalaxminayak/netskope-ms-sentinel-integration/blob/main/DataConnector_WebTxMetrics-netskope-ms-sentinel-integration-S2-1.0.0-42.zip?raw=true"
+                        "WEBSITE_RUN_FROM_PACKAGE": "https://aka.ms/sentinel-NetskopeWebTxMetrics-functionapp"
                     }
                 }
             ]
